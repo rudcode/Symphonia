@@ -142,9 +142,12 @@ pub fn read_flac_seektable_block<B: ReadBytes>(
         // ignored by decoders. The remaining 10 bytes of the seek point are undefined and must
         // still be consumed.
         if sample != 0xffff_ffff_ffff_ffff {
-            index.insert(sample, reader.read_be_u64()?, u32::from(reader.read_be_u16()?));
-        }
-        else {
+            let byte_offset = reader.read_be_u64()?;
+            let n_frames = u32::from(reader.read_be_u16()?);
+            if n_frames != 0 {
+                index.insert(sample, byte_offset, n_frames);
+            }
+        } else {
             reader.ignore_bytes(10)?;
         }
     }
@@ -312,8 +315,7 @@ fn read_flac_cuesheet_track<B: ReadBytes>(
         }
 
         Ok(ChapterGroupItem::Group(group))
-    }
-    else {
+    } else {
         // If the track has no indicies, return a single chapter.
         let chapter = Chapter {
             start_time: tb.calc_time(n_offset_samples),
@@ -385,8 +387,7 @@ fn escape_identifier(buf: &[u8]) -> String {
     for &byte in buf {
         if byte.is_ascii() && !byte.is_ascii_control() {
             ident.push(char::from(byte));
-        }
-        else {
+        } else {
             let u = (byte & 0xf0) >> 4;
             let l = byte & 0x0f;
             ident.push_str("\\0x");
